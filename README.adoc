@@ -1,0 +1,107 @@
+# CMake macros
+In CMake, macros a really brother or sisters of functions.
+
+:toc:
+:sectnums:
+
+== Introduction
+A note about macro is that, unlike function declaration, macro being a simple string replacement, and then won't create a new scope like a function is doing.
+
+A macro in CMake is really looking like a functions, indeed, you define a macro the same way you define a function:
+
+== Macro definition
+```cmake
+macro(<name> [<args1> ...])
+    <commands>
+endmacro()
+```
+
+The above code defines a macro named `<name>` that takes arguments named `<args1>...`. Commands listed after the macro being defined, but before the matching `endmacro()` statement.
+
+This macro act as a function and also `<commands>` inside it will be used if the macro is invoked.
+
+== Macro invocation
+The macro invocation is case-insensitive. A macro defined as the following:
+```cmake
+macro(foo)
+    <commands>
+endmacro()
+```
+Can be invoked through any of the following commands:
+```cmake
+foo()
+Foo()
+FOO()
+cmake_language(CALL foo)
+```
+However, it is sotrongly recomended to stay with the case chosen in the macro definition. Typically macros use all-lowercase names.
+
+== Macro arguments
+When a macro is invoked, the commands recorded in the macro are first modified by replacing formal parameters (`${args1}`, `...`) with the arguments passed, and then invoked as normal commands. Such as a function does.
+
+In addition to referencing the formal parameters you can reference the values `${ARGC}` which will be set to the number of arguments passed into the macro, as well as `${ARGV0}`, `${ARGV1}`, `${ARGV2}`, `...` which will have the actual values of the arguments passed in. This facilitateds creating macros with optional arguments.
+
+Furthermore, `${ARGV}` holds the list of all arguments given to the macro and `${ARGN}` holds the list of arguments past the last expected argument. Referencing to `${ARGV#}` arguments beyond `${ARGC}` have undefined behavior.
+
+Checking that `${ARGC}` Is greater than `#` is the only way to ensure that `${ARGV#}` was passed to the function as an extra argument.
+
+== Macro vs Function
+The `macro` command is very similar to the `function()` command. Nonetheless, there are a few important difference:
+
+* In a function, `ARGN`, `ARGV` and `ARGV0`, `ARGV1`, `...` are true variables in the usual CMake sense. In a macro, they aren't, they are string replacements much like the `C` processor would do with a macro. This has a number of consequences.
+
+Another difference between macros and functions is the control flow. A function is executed by transferring control from the calling statement to the function body. A macro is executed as if the macro body were pasted in place of the calling statement. This has the consequence that a `return()` in a macro body does not just terminate execution of a macro, rather, control is returned from the scope of the macro call. 
+
+In order to avoid confusion, it is recommended to avoid `return()` in macro altogether.
+
+=== Macro argument caveat
+Since `ARGN`, `ARGV`, `ARGV0` etc. are not variables, you won't be abe to use the commands like:
+
+```cmake
+if (ARGV1)
+```
+`ARGV1` isn't a variable, in that case, you can use `if(${ARGC} GREATER 2)`.
+
+```cmake
+if (DEFINED ARGV2)
+```
+`ARGV2` isn't a variable, so the proper way to check if an optional variable was passed to the macro is to use `if (${ARGC} )`
+
+```cmake
+if (ARGC GREATER 2)
+```
+`ARGC` isn't a variable, so the proper way to check if an optional variable has been passed to the macro is to use `if (${ARGC})`
+
+```cmake
+foreach(loop_var IN LISTS ARGN)
+```
+`ARGN` isn't a variable. In that case, you can use the following: `foreach(loop_var ${ARGN})` although it will skip empty arguments. If you need to include them, you can use:
+```cmake
+set(list_var "${ARGN}")
+foreach(loop_var IN LISTS list_var)
+```
+
+Note that if you have a variable with the same name in the scope from which the macro is called, using unreferenced names will use the existing variable instead of the arguments. For instance:
+
+```cmake
+macro(bar)
+    foreach(arg IN LISTS ARGN)
+        <commands>
+    endforeach()
+endmacro()
+
+function(foo)
+    bar(x y z)
+endfunction()
+
+foo(a b c)
+```
+The above code will loop over `a;b;c` and not over `x;y;z` as one might have expected. If you want true CMake variables and/or better CMake scope control, you should look at the function command instead ! 
+
+== Command endmacro()
+
+This command, such as `endfunction()` or `endforeach()` ends a list of commands in a macro block:
+```cmake
+endmacro([<name>])
+```
+The optional `<name>` arguments is supported for backward compatibility only. If used it must be a verbatim repeat of the `<name>` argument of the opening `macro` command, such as the other `foreach()` or `function()` command.
